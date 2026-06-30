@@ -11,9 +11,9 @@ Welcome. This assignment is designed to reflect the real work of a Lead Security
 **VulnTracker** is a two-service system for managing vulnerability scan results:
 
 - **`app/`** — Python/FastAPI REST API. Security teams use it to log findings, track remediation, and share reports with stakeholders.
-- **`notify/`** — Node.js/Express notification service. Dispatches webhook events to registered endpoints when scan records are created or updated.
+- **`notify/`** — Node.js/Express notification service. Intended to dispatch webhook events to registered endpoints when scan records are created or updated.
 
-Both services are working but imperfect internal prototypes. Neither has gone through a formal security review.
+Both services are working but imperfect internal prototypes. Neither has gone through a formal security review. The integration between the two services (i.e. the Python API calling the notification service) is not yet implemented — that is not a task you are asked to complete.
 
 ---
 
@@ -144,7 +144,7 @@ Write a `docs/findings.md` with a table of security findings, sourced from your 
 
 #### Dockerfile (mandatory)
 
-Write a production-grade `Dockerfile` for the app. It must:
+Write a production-grade `Dockerfile` for the **Python FastAPI service** (`app/`). It must:
 
 - Use a minimal, pinned base image
 - Run as a non-root user
@@ -184,7 +184,7 @@ Push your completed solution to your own GitHub repository and share the URL wit
 ```
 /
 ├── app/                        # extended Python API code
-├── notify/                     # extended Node.js notification service
+├── notify/                     # Node.js notification service (no changes required)
 ├── Dockerfile                  # mandatory (may cover one or both services)
 ├── reports/
 │   ├── sast.<tool>.json

@@ -1,20 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const app = require('../src/index');
+const config = require('../src/config');
 
-// Use dynamic import for node-fetch or built-in fetch (Node 18+)
-const BASE_URL = 'http://localhost:3001';
-
+const BASE_URL = `http://localhost:${config.PORT}`;
 let server;
-let app;
 
 test.before(async () => {
-  app = require('../src/index');
-  // Allow server to bind
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise((resolve) => {
+    server = app.listen(config.PORT, resolve);
+  });
 });
 
 test.after(async () => {
-  if (server) server.close();
+  await new Promise((resolve) => server.close(resolve));
 });
 
 async function post(path, body) {
@@ -84,6 +83,6 @@ test('DELETE /webhooks/:id returns 404 for unknown id', async () => {
 });
 
 test('POST /notify requires event and payload', async () => {
-  const { status } = await post('/notify', { event: 'scan.created' }); // missing payload
+  const { status } = await post('/notify', { event: 'scan.created' });
   assert.equal(status, 400);
 });
