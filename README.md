@@ -68,7 +68,7 @@ npm start
 
 Available at `http://localhost:3001`.
 
-Run the Node.js test suite:
+Run the Node.js test suite (stop the notify service first if it is running — the test suite starts its own server on the same port):
 
 ```bash
 cd notify
