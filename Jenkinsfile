@@ -26,7 +26,9 @@ pipeline {
             def scannerHome = tool 'sonar-scanner'
 
             withSonarQubeEnv('sonarqube') {
-                bat "${scannerHome}/bin/sonar-scanner"
+                bat """
+                ${scannerHome}\\bin\\sonar-scanner.bat
+                """
             }
         }
     }
