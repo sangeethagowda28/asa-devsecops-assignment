@@ -197,7 +197,7 @@ pipeline {
                   -w /app ^
                   -e SNYK_TOKEN=%SNYK_TOKEN% ^
                   snyk/snyk:python ^
-                  sh -c "pip install -r requirements.txt && snyk test --severity-threshold=high"
+                  sh -c "pip install -r requirements.txt && snyk test --severity-threshold=high --fail-on=upgradable"
 
                 '''
 
