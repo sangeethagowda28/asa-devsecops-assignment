@@ -43,20 +43,17 @@ pipeline {
         }
 
         stage('Snyk Scan') {
-            steps {
-                withCredentials([
-                    string(
-                        credentialsId: 'snyk-token',
-                        variable: 'SNYK_TOKEN'
-                    )
-                ]) {
-                    bat '''
-                        snyk auth $SNYK_TOKEN%
-                        snyk test
-                    '''
-                }
-            }
+    steps {
+        withCredentials([
+            string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')
+        ]) {
+            bat '''
+            snyk auth %SNYK_TOKEN%
+            snyk test
+            '''
         }
+    }
+}
 
         stage('Docker Build') {
             steps {
