@@ -75,4 +75,5 @@ env:
 
 secret:
 
+  # checkov:skip=CKV_SECRET_6: vulntracker-secret is resource name, not a secret value
   existingSecret: vulntracker-secret
