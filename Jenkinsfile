@@ -6,6 +6,7 @@ pipeline {
         IMAGE_NAME = "sangu7991/vulntracker"
         HELM_CHART = "./helm"
         K8S_NAMESPACE = "vulntracker"
+        SNYK_TOKEN = credentials('snyk-token')
     }
 
     stages {
@@ -13,6 +14,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+
                 bat '''
                 echo Repository checked out successfully
                 dir
@@ -20,72 +22,128 @@ pipeline {
             }
         }
 
-       stage('SonarQube Scan') {
-    steps {
-        script {
-            def scannerHome = tool 'sonar-scanner'
 
-            withSonarQubeEnv('sonarqube') {
-                bat """
-                ${scannerHome}\\bin\\sonar-scanner.bat
-                """
+        stage('Verify Tools') {
+            steps {
+                bat '''
+                echo Checking installed tools...
+
+                where docker
+                docker --version
+
+                where kubectl
+                kubectl version --client
+
+                where helm
+                helm version
+
+                where trivy
+                trivy --version
+
+                where snyk
+                snyk --version
+
+                where sonar-scanner
+                sonar-scanner --version
+
+                echo Tool verification completed
+                '''
             }
         }
-    }
-}
 
-        stage('Quality Gate') {
+
+        stage('SonarQube Scan') {
             steps {
-                timeout(time: 15, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                script {
+
+                    def scannerHome = tool 'sonar-scanner'
+
+                    withSonarQubeEnv('sonarqube') {
+
+                        bat """
+                        ${scannerHome}\\bin\\sonar-scanner.bat
+                        """
+                    }
                 }
             }
         }
 
-        stage('Snyk Scan') {
-    steps {
-        withCredentials([
-            string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')
-        ]) {
-            bat '''
-            snyk auth %SNYK_TOKEN%
-            snyk test
-            '''
+
+        stage('Quality Gate') {
+            steps {
+
+                timeout(time: 15, unit: 'MINUTES') {
+
+                    waitForQualityGate abortPipeline: true
+
+                }
+            }
         }
-    }
-}
+
+
+        stage('Snyk Scan') {
+            steps {
+
+                bat '''
+                echo Authenticating Snyk...
+
+                snyk auth %SNYK_TOKEN%
+
+                snyk test
+
+                '''
+            }
+        }
+
 
         stage('Docker Build') {
             steps {
+
                 bat '''
-                    docker build \
-                      -t $IMAGE_NAME:$BUILD_NUMBER \
-                      -t $IMAGE_NAME:latest .
+                echo Building Docker image...
+
+                docker build ^
+                -t %IMAGE_NAME%:%BUILD_NUMBER% ^
+                -t %IMAGE_NAME%:latest .
+
                 '''
             }
         }
+
 
         stage('Trivy Scan') {
             steps {
+
                 bat '''
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      $IMAGE_NAME:$BUILD_NUMBER
+                echo Scanning Docker image...
+
+                trivy image ^
+                --severity HIGH,CRITICAL ^
+                --exit-code 1 ^
+                %IMAGE_NAME%:%BUILD_NUMBER%
+
                 '''
             }
         }
+
 
         stage('Checkov Scan') {
             steps {
+
                 bat '''
-                    checkov -d helm
+                echo Running Checkov IaC scan...
+
+                checkov -d helm
+
                 '''
             }
         }
 
+
         stage('Docker Push') {
+
             steps {
+
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub-creds',
@@ -93,76 +151,111 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )
                 ]) {
+
                     bat '''
-                        echo $DOCKER_PASS | docker login \
-                          -u $DOCKER_USER \
-                          --password-stdin
 
-                        docker push $IMAGE_NAME:$BUILD_NUMBER
-                        docker push $IMAGE_NAME:latest
+                    echo Logging into Docker Hub...
 
-                        docker logout
+                    echo %DOCKER_PASS% | docker login ^
+                    -u %DOCKER_USER% ^
+                    --password-stdin
+
+
+                    docker push %IMAGE_NAME%:%BUILD_NUMBER%
+
+                    docker push %IMAGE_NAME%:latest
+
+
+                    docker logout
+
                     '''
                 }
             }
         }
 
+
         stage('Helm Lint') {
             steps {
+
                 bat '''
-                    helm lint $HELM_CHART
+
+                echo Running Helm lint...
+
+                helm lint %HELM_CHART%
+
                 '''
             }
         }
+
 
         stage('Deploy to Kubernetes') {
             steps {
+
                 bat '''
-                    helm upgrade --install vulntracker $HELM_CHART \
-                      --namespace $K8S_NAMESPACE \
-                      --create-namespace
+
+                echo Deploying application...
+
+                helm upgrade --install vulntracker %HELM_CHART% ^
+                --namespace %K8S_NAMESPACE% ^
+                --create-namespace
+
+
                 '''
             }
         }
+
 
         stage('Verify Deployment') {
             steps {
-                bat '''
-                    kubectl rollout status deployment/vulntracker \
-                      -n $K8S_NAMESPACE
 
-                    kubectl get all \
-                      -n $K8S_NAMESPACE
+                bat '''
+
+                echo Checking Kubernetes rollout...
+
+
+                kubectl rollout status deployment/vulntracker ^
+                -n %K8S_NAMESPACE%
+
+
+                kubectl get all ^
+                -n %K8S_NAMESPACE%
+
                 '''
             }
         }
-        stage('Verify Tools') {
-    steps {
-        bat '''
-        where.exe sonar-scanner
-        sonar-scanner --version
-        '''
+
     }
-}
-    }
+
 
     post {
 
         success {
-            echo '========================================'
-            echo 'DevSecOps Pipeline Completed Successfully'
-            echo '========================================'
+
+            echo '''
+            ========================================
+            DevSecOps Pipeline Completed Successfully
+            ========================================
+            '''
+
         }
+
 
         failure {
-            echo '========================================'
-            echo 'Pipeline Failed'
-            echo 'Review Jenkins console logs.'
-            echo '========================================'
+
+            echo '''
+            ========================================
+            Pipeline Failed
+            Review Jenkins console logs
+            ========================================
+            '''
+
         }
 
+
         always {
+
             cleanWs()
+
         }
     }
 }
