@@ -44,12 +44,8 @@ pipeline {
                 echo Checking installed tools...
 
 
-                where python
-                python --version
-
-
-                where pip
-                pip --version
+                docker run --rm python:3.12-slim-bookworm python --version
+                docker run --rm python:3.12-slim-bookworm pip --version
 
 
                 where docker
@@ -60,8 +56,7 @@ pipeline {
                 kubectl version --client
 
 
-                where helm
-                helm version
+                docker run --rm alpine/helm version
 
 
                 where trivy
@@ -76,8 +71,7 @@ pipeline {
                 sonar-scanner --version
 
 
-                where checkov
-                checkov --version
+                docker run --rm bridgecrew/checkov --version
 
 
                 echo Tool verification completed
@@ -101,9 +95,11 @@ pipeline {
                 if not exist reports mkdir reports
 
 
-                pytest ^
-                --cov=app ^
-                --cov-report=xml:reports/coverage.xml
+                docker run --rm ^
+                  -v "%WORKSPACE%:/workspace" ^
+                  -w /workspace ^
+                  python:3.12-slim-bookworm ^
+                  sh -c "pip install -r requirements.txt && pytest --cov=app --cov-report=xml:reports/coverage.xml"
 
 
                 '''
@@ -283,7 +279,7 @@ pipeline {
                 echo Running Checkov Scan...
 
 
-                checkov -d helm
+                docker run --rm -v "%WORKSPACE%:/work" -w /work bridgecrew/checkov -d helm
 
 
                 '''
@@ -367,7 +363,7 @@ pipeline {
                 echo Helm validation...
 
 
-                helm lint %HELM_CHART%
+                docker run --rm -v "%WORKSPACE%:/apps" alpine/helm lint /apps/helm
 
 
                 '''
@@ -395,11 +391,14 @@ pipeline {
                 echo Deploying application...
 
 
-                helm upgrade --install vulntracker %HELM_CHART% ^
-                --namespace %K8S_NAMESPACE% ^
-                --create-namespace ^
-                --set image.repository=%IMAGE_NAME% ^
-                --set image.tag=%IMAGE_TAG%
+                docker run --rm ^
+                  -v "%WORKSPACE%:/apps" ^
+                  -v "%USERPROFILE%\\.kube:/root/.kube" ^
+                  alpine/helm upgrade --install vulntracker /apps/helm ^
+                  --namespace %K8S_NAMESPACE% ^
+                  --create-namespace ^
+                  --set image.repository=%IMAGE_NAME% ^
+                  --set image.tag=%IMAGE_TAG%
 
 
 
