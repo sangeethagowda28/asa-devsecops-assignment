@@ -118,7 +118,11 @@ pipeline {
             steps {
 
 
+<<<<<<< HEAD
                 withSonarQubeEnv('sonarqube') {
+=======
+                withSonarQubeEnv() {
+>>>>>>> 605304b97da6724ef83a90797daad85859b1c735
 
 
                     withCredentials([
