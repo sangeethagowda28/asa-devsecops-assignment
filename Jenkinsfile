@@ -3,262 +3,528 @@ pipeline {
     agent any
 
     environment {
+
         IMAGE_NAME = "sangu7991/vulntracker"
         HELM_CHART = "./helm"
         K8S_NAMESPACE = "vulntracker"
+
         SNYK_TOKEN = credentials('snyk-token')
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
     }
+
 
     stages {
 
+
         stage('Checkout') {
+
             steps {
+
                 checkout scm
 
                 bat '''
-                echo Repository checked out successfully
+                echo Repository checkout completed
                 dir
                 '''
+
             }
+
         }
 
 
+
         stage('Verify Tools') {
+
             steps {
+
                 bat '''
+
                 echo Checking installed tools...
+
+
+                where python
+                python --version
+
+
+                where pip
+                pip --version
+
 
                 where docker
                 docker --version
 
+
                 where kubectl
                 kubectl version --client
+
 
                 where helm
                 helm version
 
+
                 where trivy
                 trivy --version
+
 
                 where snyk
                 snyk --version
 
+
                 where sonar-scanner
                 sonar-scanner --version
 
+
+                where checkov
+                checkov --version
+
+
                 echo Tool verification completed
+
                 '''
+
             }
+
         }
 
-        stage('Test') {
-    steps {
-        bat """
-        pytest --cov=app --cov-report=xml:reports/coverage.xml
-        """
-    }
-}
-        stage('SonarQube Analysis') {
-    steps {
-        withSonarQubeEnv('SonarQube') {
-            withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                bat """
-                sonar-scanner ^
-                -Dsonar.token=%SONAR_TOKEN%
-                """
+
+
+
+        stage('Install Dependencies') {
+
+            steps {
+
+                bat '''
+
+                echo Installing Python dependencies...
+
+
+                pip install --upgrade pip
+
+
+                pip install -r requirements.txt
+
+
+                '''
+
             }
+
         }
-    }
-}
+
+
+
+
+
+        stage('Test') {
+
+            steps {
+
+                bat '''
+
+                echo Running Unit Tests...
+
+
+                if not exist reports mkdir reports
+
+
+                pytest ^
+                --cov=app ^
+                --cov-report=xml:reports/coverage.xml
+
+
+                '''
+
+            }
+
+        }
+
+
+
+
+
+
+        stage('SonarQube Analysis') {
+
+            steps {
+
+
+                withSonarQubeEnv('SonarQube') {
+
+
+                    withCredentials([
+                        string(
+                            credentialsId: 'sonar-token',
+                            variable: 'SONAR_TOKEN'
+                        )
+                    ]) {
+
+
+                        bat '''
+
+                        echo Running SonarQube Scan...
+
+
+                        sonar-scanner ^
+                        -Dsonar.token=%SONAR_TOKEN%
+
+
+                        '''
+
+                    }
+
+                }
+
+            }
+
+        }
+
+
+
+
 
 
         stage('Quality Gate') {
+
             steps {
 
-                timeout(time: 15, unit: 'MINUTES') {
 
-                    waitForQualityGate abortPipeline: true
+                timeout(
+                    time:15,
+                    unit:'MINUTES'
+                ) {
+
+
+                    waitForQualityGate(
+                        abortPipeline:true
+                    )
+
 
                 }
+
             }
+
         }
+
+
+
+
+
 
 
         stage('Snyk Scan') {
+
+
             steps {
 
+
                 bat '''
-                echo Authenticating Snyk...
 
-                snyk auth %SNYK_TOKEN%
+                echo Running Snyk Security Scan...
 
-                snyk test
+
+                set SNYK_TOKEN=%SNYK_TOKEN%
+
+
+                snyk test ^
+                --severity-threshold=high
+
 
                 '''
+
             }
+
         }
+
+
+
+
+
 
 
         stage('Docker Build') {
+
+
             steps {
 
+
                 bat '''
-                echo Building Docker image...
+
+                echo Building Docker Image...
+
 
                 docker build ^
-                -t %IMAGE_NAME%:%BUILD_NUMBER% ^
+                -t %IMAGE_NAME%:%IMAGE_TAG% ^
                 -t %IMAGE_NAME%:latest .
 
+
                 '''
+
             }
+
         }
 
 
+
+
+
+
+
         stage('Trivy Scan') {
+
+
             steps {
 
+
                 bat '''
-                echo Scanning Docker image...
+
+                echo Running Trivy Scan...
+
 
                 trivy image ^
                 --severity HIGH,CRITICAL ^
                 --exit-code 1 ^
-                %IMAGE_NAME%:%BUILD_NUMBER%
+                %IMAGE_NAME%:%IMAGE_TAG%
+
 
                 '''
+
             }
+
         }
+
+
+
+
+
 
 
         stage('Checkov Scan') {
+
+
             steps {
 
+
                 bat '''
-                echo Running Checkov IaC scan...
+
+                echo Running Checkov Scan...
+
 
                 checkov -d helm
 
+
                 '''
+
             }
+
         }
+
+
+
+
+
 
 
         stage('Docker Push') {
 
+
             steps {
 
+
                 withCredentials([
+
                     usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
+
+                        credentialsId:'dockerhub-creds',
+
+                        usernameVariable:'DOCKER_USER',
+
+                        passwordVariable:'DOCKER_PASS'
+
                     )
+
                 ]) {
+
+
 
                     bat '''
 
                     echo Logging into Docker Hub...
+
 
                     echo %DOCKER_PASS% | docker login ^
                     -u %DOCKER_USER% ^
                     --password-stdin
 
 
-                    docker push %IMAGE_NAME%:%BUILD_NUMBER%
+
+                    docker push %IMAGE_NAME%:%IMAGE_TAG%
+
 
                     docker push %IMAGE_NAME%:latest
 
 
+
                     docker logout
 
+
                     '''
+
                 }
+
+
             }
+
         }
+
+
+
+
+
 
 
         stage('Helm Lint') {
+
+
             steps {
+
 
                 bat '''
 
-                echo Running Helm lint...
+                echo Helm validation...
+
 
                 helm lint %HELM_CHART%
 
+
                 '''
+
             }
+
         }
 
 
-        stage('Deploy to Kubernetes') {
+
+
+
+
+
+
+        stage('Deploy Kubernetes') {
+
+
             steps {
 
+
                 bat '''
+
 
                 echo Deploying application...
 
+
                 helm upgrade --install vulntracker %HELM_CHART% ^
                 --namespace %K8S_NAMESPACE% ^
-                --create-namespace
+                --create-namespace ^
+                --set image.repository=%IMAGE_NAME% ^
+                --set image.tag=%IMAGE_TAG%
+
 
 
                 '''
+
             }
+
         }
 
 
+
+
+
+
+
         stage('Verify Deployment') {
+
+
             steps {
+
 
                 bat '''
 
-                echo Checking Kubernetes rollout...
+
+                echo Checking deployment...
 
 
                 kubectl rollout status deployment/vulntracker ^
                 -n %K8S_NAMESPACE%
 
 
-                kubectl get all ^
+
+                kubectl get pods ^
                 -n %K8S_NAMESPACE%
 
+
+
+                kubectl get svc ^
+                -n %K8S_NAMESPACE%
+
+
+
                 '''
+
             }
+
         }
 
+
+
     }
+
+
 
 
     post {
 
+
         success {
 
+
             echo '''
-            ========================================
+
+            =========================================
             DevSecOps Pipeline Completed Successfully
-            ========================================
+            =========================================
+
             '''
 
         }
+
 
 
         failure {
 
+
             echo '''
-            ========================================
+
+            =========================================
             Pipeline Failed
-            Review Jenkins console logs
-            ========================================
+            Check Jenkins Logs
+            =========================================
+
             '''
 
         }
 
 
+
         always {
+
 
             cleanWs()
 
         }
+
+
     }
+
+
 }
