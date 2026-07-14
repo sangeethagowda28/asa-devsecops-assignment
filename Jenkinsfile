@@ -13,7 +13,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                sh '''
+                bat '''
                 echo Repository checked out successfully
                 dir
                 '''
@@ -26,7 +26,7 @@ pipeline {
             def scannerHome = tool 'sonar-scanner'
 
             withSonarQubeEnv('sonarqube') {
-                sh "${scannerHome}/bin/sonar-scanner"
+                bat "${scannerHome}/bin/sonar-scanner"
             }
         }
     }
@@ -48,7 +48,7 @@ pipeline {
                         variable: 'SNYK_TOKEN'
                     )
                 ]) {
-                    sh '''
+                    bat '''
                         snyk auth $SNYK_TOKEN
                         snyk test
                     '''
@@ -58,7 +58,7 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh '''
+                bat '''
                     docker build \
                       -t $IMAGE_NAME:$BUILD_NUMBER \
                       -t $IMAGE_NAME:latest .
@@ -68,7 +68,7 @@ pipeline {
 
         stage('Trivy Scan') {
             steps {
-                sh '''
+                bat '''
                     trivy image \
                       --severity HIGH,CRITICAL \
                       --exit-code 1 \
@@ -79,7 +79,7 @@ pipeline {
 
         stage('Checkov Scan') {
             steps {
-                sh '''
+                bat '''
                     checkov -d helm
                 '''
             }
@@ -94,7 +94,7 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )
                 ]) {
-                    sh '''
+                    bat '''
                         echo $DOCKER_PASS | docker login \
                           -u $DOCKER_USER \
                           --password-stdin
@@ -110,7 +110,7 @@ pipeline {
 
         stage('Helm Lint') {
             steps {
-                sh '''
+                bat '''
                     helm lint $HELM_CHART
                 '''
             }
@@ -118,7 +118,7 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
+                bat '''
                     helm upgrade --install vulntracker $HELM_CHART \
                       --namespace $K8S_NAMESPACE \
                       --create-namespace
@@ -128,7 +128,7 @@ pipeline {
 
         stage('Verify Deployment') {
             steps {
-                sh '''
+                bat '''
                     kubectl rollout status deployment/vulntracker \
                       -n $K8S_NAMESPACE
 
