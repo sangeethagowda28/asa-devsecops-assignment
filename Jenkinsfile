@@ -35,6 +35,32 @@ pipeline {
 
 
 
+        stage('Docker Login') {
+
+            steps {
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+
+                    bat '''
+                    echo Logging into Docker Hub...
+                    setlocal enabledelayedexpansion
+                    echo !DOCKER_PASS!| docker login -u !DOCKER_USER! --password-stdin
+                    '''
+
+                }
+
+            }
+
+        }
+
+
+
         stage('Verify Tools') {
 
             steps {
@@ -197,7 +223,7 @@ pipeline {
                   -w /app ^
                   -e SNYK_TOKEN=%SNYK_TOKEN% ^
                   snyk/snyk:python ^
-                  sh -c "pip install -r requirements.txt && snyk test --severity-threshold=high --fail-on=upgradable"
+                  sh -c "pip install -r requirements.txt && snyk test --file=requirements.txt --package-manager=pip --severity-threshold=high --fail-on=upgradable"
 
                 '''
 
@@ -300,47 +326,18 @@ pipeline {
             steps {
 
 
-                withCredentials([
+                bat '''
 
-                    usernamePassword(
-
-                        credentialsId:'dockerhub-creds',
-
-                        usernameVariable:'DOCKER_USER',
-
-                        passwordVariable:'DOCKER_PASS'
-
-                    )
-
-                ]) {
+                echo Pushing Docker Image...
 
 
-
-                    bat '''
-
-                    echo Logging into Docker Hub...
+                docker push %IMAGE_NAME%:%IMAGE_TAG%
 
 
-                    echo %DOCKER_PASS% | docker login ^
-                    -u %DOCKER_USER% ^
-                    --password-stdin
+                docker push %IMAGE_NAME%:latest
 
 
-
-                    docker push %IMAGE_NAME%:%IMAGE_TAG%
-
-
-                    docker push %IMAGE_NAME%:latest
-
-
-
-                    docker logout
-
-
-                    '''
-
-                }
-
+                '''
 
             }
 
@@ -489,6 +486,9 @@ pipeline {
 
 
         always {
+
+
+            bat 'docker logout'
 
 
             cleanWs()
