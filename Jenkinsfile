@@ -51,22 +51,25 @@ pipeline {
             }
         }
 
-
-        stage('SonarQube Scan') {
-            steps {
-                script {
-
-                    def scannerHome = tool 'sonar-scanner'
-
-                    withSonarQubeEnv('sonarqube') {
-
-                        bat """
-                        ${scannerHome}\\bin\\sonar-scanner.bat
-                        """
-                    }
-                }
+        stage('Test') {
+    steps {
+        bat """
+        pytest --cov=app --cov-report=xml:reports/coverage.xml
+        """
+    }
+}
+        stage('SonarQube Analysis') {
+    steps {
+        withSonarQubeEnv('SonarQube') {
+            withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                bat """
+                sonar-scanner ^
+                -Dsonar.token=%SONAR_TOKEN%
+                """
             }
         }
+    }
+}
 
 
         stage('Quality Gate') {
