@@ -417,12 +417,10 @@ pipeline {
                     exit /b 1
                 )
 
-                if not exist "%WORKSPACE%\\.kube" mkdir "%WORKSPACE%\\.kube"
-                copy "%KUBE_CONFIG_PATH%" "%WORKSPACE%\\.kube\\config"
-                set KUBECONFIG=%WORKSPACE%\\.kube\\config
+                if not exist "%USERPROFILE%\\.kube" mkdir "%USERPROFILE%\\.kube"
+                copy "%KUBE_CONFIG_PATH%" "%USERPROFILE%\\.kube\\config"
 
                 "%HELM_PATH%" upgrade --install vulntracker helm ^
-                  --kubeconfig "%WORKSPACE%\\.kube\\config" ^
                   --namespace %K8S_NAMESPACE% ^
                   --create-namespace ^
                   --set image.repository=%IMAGE_NAME% ^
@@ -463,21 +461,20 @@ pipeline {
                     exit /b 1
                 )
 
-                if not exist "%WORKSPACE%\\.kube" mkdir "%WORKSPACE%\\.kube"
-                copy "%KUBE_CONFIG_PATH%" "%WORKSPACE%\\.kube\\config"
-                set KUBECONFIG=%WORKSPACE%\\.kube\\config
+                if not exist "%USERPROFILE%\\.kube" mkdir "%USERPROFILE%\\.kube"
+                copy "%KUBE_CONFIG_PATH%" "%USERPROFILE%\\.kube\\config"
 
-                kubectl --kubeconfig "%WORKSPACE%\\.kube\\config" rollout status deployment/vulntracker ^
+                kubectl rollout status deployment/vulntracker ^
                 -n %K8S_NAMESPACE%
 
 
 
-                kubectl --kubeconfig "%WORKSPACE%\\.kube\\config" get pods ^
+                kubectl get pods ^
                 -n %K8S_NAMESPACE%
 
 
 
-                kubectl --kubeconfig "%WORKSPACE%\\.kube\\config" get svc ^
+                kubectl get svc ^
                 -n %K8S_NAMESPACE%
 
 
