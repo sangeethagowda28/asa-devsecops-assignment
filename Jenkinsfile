@@ -12,6 +12,9 @@ pipeline {
 
         IMAGE_TAG = "${BUILD_NUMBER}"
 
+        DOCKER_HOST = 'tcp://127.0.0.1:2375'
+        PATH = "C:\\Users\\sagar\\Downloads\\sonar-scanner-8.0.1.6346-windows-x64\\bin;C:\\Users\\sagar\\Downloads\\trivy_0.72.0_windows-64bit;C:\\Users\\sagar\\AppData\\Roaming\\npm;C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
+
     }
 
 
