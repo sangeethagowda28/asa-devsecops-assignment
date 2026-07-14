@@ -99,11 +99,13 @@ pipeline {
 
                 echo Installing Python dependencies...
 
+                python --version
 
-                pip install --upgrade pip
+                python -m pip --version
 
+                python -m pip install --upgrade pip
 
-                pip install -r requirements.txt
+                python -m pip install -r requirements.txt
 
 
                 '''
