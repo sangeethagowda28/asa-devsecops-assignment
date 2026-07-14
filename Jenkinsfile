@@ -89,35 +89,6 @@ pipeline {
         }
 
 
-
-
-        stage('Install Dependencies') {
-
-            steps {
-
-                bat '''
-
-                echo Installing Python dependencies...
-
-                python --version
-
-                python -m pip --version
-
-                python -m pip install --upgrade pip
-
-                python -m pip install -r requirements.txt
-
-
-                '''
-
-            }
-
-        }
-
-
-
-
-
         stage('Test') {
 
             steps {
