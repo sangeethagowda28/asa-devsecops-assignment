@@ -422,6 +422,7 @@ pipeline {
                 set KUBECONFIG=%WORKSPACE%\\.kube\\config
 
                 "%HELM_PATH%" upgrade --install vulntracker helm ^
+                  --kubeconfig "%WORKSPACE%\\.kube\\config" ^
                   --namespace %K8S_NAMESPACE% ^
                   --create-namespace ^
                   --set image.repository=%IMAGE_NAME% ^
@@ -466,17 +467,17 @@ pipeline {
                 copy "%KUBE_CONFIG_PATH%" "%WORKSPACE%\\.kube\\config"
                 set KUBECONFIG=%WORKSPACE%\\.kube\\config
 
-                kubectl rollout status deployment/vulntracker ^
+                kubectl --kubeconfig "%WORKSPACE%\\.kube\\config" rollout status deployment/vulntracker ^
                 -n %K8S_NAMESPACE%
 
 
 
-                kubectl get pods ^
+                kubectl --kubeconfig "%WORKSPACE%\\.kube\\config" get pods ^
                 -n %K8S_NAMESPACE%
 
 
 
-                kubectl get svc ^
+                kubectl --kubeconfig "%WORKSPACE%\\.kube\\config" get svc ^
                 -n %K8S_NAMESPACE%
 
 
