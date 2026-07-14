@@ -360,9 +360,19 @@ pipeline {
 
                 echo Helm validation...
 
+                set HELM_PATH=
+                for /d %%d in (C:\\Users\\*) do (
+                    if exist "%%d\\Downloads" (
+                        for /f "delims=" %%h in ('dir /b /s "%%d\\Downloads\\helm.exe" 2>nul') do set HELM_PATH=%%h
+                    )
+                )
 
-                docker run --rm -v "%WORKSPACE%:/apps" alpine/helm lint /apps/helm
+                if "%HELM_PATH%"=="" (
+                    echo Error: helm.exe not found!
+                    exit /b 1
+                )
 
+                "%HELM_PATH%" lint helm
 
                 '''
 
@@ -388,13 +398,30 @@ pipeline {
 
                 echo Deploying application...
 
-                if not exist "%WORKSPACE%\\.kube" mkdir "%WORKSPACE%\\.kube"
-                copy "C:\\Users\\sagar\\.kube\\config" "%WORKSPACE%\\.kube\\config"
+                set HELM_PATH=
+                set KUBE_CONFIG_PATH=
 
-                docker run --rm ^
-                  -v "%WORKSPACE%:/apps" ^
-                  -v "%WORKSPACE%\\.kube:/root/.kube" ^
-                  alpine/helm upgrade --install vulntracker /apps/helm ^
+                for /d %%d in (C:\\Users\\*) do (
+                    if exist "%%d\\.kube\\config" set KUBE_CONFIG_PATH=%%d\\.kube\\config
+                    if exist "%%d\\Downloads" (
+                        for /f "delims=" %%h in ('dir /b /s "%%d\\Downloads\\helm.exe" 2>nul') do set HELM_PATH=%%h
+                    )
+                )
+
+                if "%HELM_PATH%"=="" (
+                    echo Error: helm.exe not found!
+                    exit /b 1
+                )
+                if "%KUBE_CONFIG_PATH%"=="" (
+                    echo Error: kubeconfig not found!
+                    exit /b 1
+                )
+
+                if not exist "%WORKSPACE%\\.kube" mkdir "%WORKSPACE%\\.kube"
+                copy "%KUBE_CONFIG_PATH%" "%WORKSPACE%\\.kube\\config"
+                set KUBECONFIG=%WORKSPACE%\\.kube\\config
+
+                "%HELM_PATH%" upgrade --install vulntracker helm ^
                   --namespace %K8S_NAMESPACE% ^
                   --create-namespace ^
                   --set image.repository=%IMAGE_NAME% ^
@@ -425,6 +452,18 @@ pipeline {
 
                 echo Checking deployment...
 
+                set KUBE_CONFIG_PATH=
+                for /d %%d in (C:\\Users\\*) do (
+                    if exist "%%d\\.kube\\config" set KUBE_CONFIG_PATH=%%d\\.kube\\config
+                )
+
+                if "%KUBE_CONFIG_PATH%"=="" (
+                    echo Error: kubeconfig not found!
+                    exit /b 1
+                )
+
+                if not exist "%WORKSPACE%\\.kube" mkdir "%WORKSPACE%\\.kube"
+                copy "%KUBE_CONFIG_PATH%" "%WORKSPACE%\\.kube\\config"
                 set KUBECONFIG=%WORKSPACE%\\.kube\\config
 
                 kubectl rollout status deployment/vulntracker ^
