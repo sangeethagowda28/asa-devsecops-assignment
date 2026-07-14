@@ -13,6 +13,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+                sh '''
+                echo Repository checked out successfully
+                dir
+                '''
             }
         }
 
