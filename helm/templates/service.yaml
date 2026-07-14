@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: {{ include "vulntracker.fullname" . }}
+  namespace: {{ .Values.namespace }}
+
+  labels:
+    app: vulntracker
+
+spec:
+
+  type: {{ .Values.service.type }}
+
+  selector:
+    app: vulntracker
+
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP

@@ -1,0 +1,78 @@
+replicaCount: 1
+
+
+image:
+  repository: sangu7991/vulntracker
+  digest: sha256:f15330efb37341a8bfa45df87f5b46cd89ce68e1b0aa6bda1293d7615561612e
+  pullPolicy: Always
+
+
+namespace: vulntracker
+
+
+service:
+  type: ClusterIP
+  port: 8000
+
+
+resources:
+
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+
+
+securityContext:
+
+  pod:
+
+    runAsNonRoot: true
+
+    runAsUser: 10001
+
+    runAsGroup: 10001
+
+    fsGroup: 10001
+
+
+    seccompProfile:
+
+      type: RuntimeDefault
+
+
+
+  container:
+
+    allowPrivilegeEscalation: false
+
+    readOnlyRootFilesystem: true
+
+    privileged: false
+
+
+    capabilities:
+
+      drop:
+
+        - ALL
+
+
+
+env:
+
+  databaseUrl: "sqlite:///./data/vulntracker.db"
+
+  accessTokenExpireMinutes: "60"
+
+  notifyServiceUrl: "http://notification-service:8001"
+
+
+
+secret:
+
+  existingSecret: vulntracker-secret

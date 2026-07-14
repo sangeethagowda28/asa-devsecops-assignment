@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: {{ include "vulntracker.fullname" . }}
+  namespace: {{ .Values.namespace }}
+
+  labels:
+    app: vulntracker
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: vulntracker
+
+  template:
+    metadata:
+      labels:
+        app: vulntracker
+
+    spec:
+      serviceAccountName: {{ include "vulntracker.fullname" . }}
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.pod.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.pod.runAsUser }}
+        runAsGroup: {{ .Values.securityContext.pod.runAsGroup }}
+        fsGroup: {{ .Values.securityContext.pod.fsGroup }}
+
+        seccompProfile:
+          type: RuntimeDefault
+
+
+      containers:
+
+      - name: vulntracker
+
+        image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+
+        ports:
+
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+
+
+        securityContext:
+
+          allowPrivilegeEscalation: {{ .Values.securityContext.container.allowPrivilegeEscalation }}
+
+          readOnlyRootFilesystem: {{ .Values.securityContext.container.readOnlyRootFilesystem }}
+
+          privileged: {{ .Values.securityContext.container.privileged }}
+
+          capabilities:
+            drop:
+            {{- range .Values.securityContext.container.capabilities.drop }}
+              - {{ . }}
+            {{- end }}
+
+
+        env:
+
+        - name: DATABASE_URL
+          value: {{ .Values.env.databaseUrl | quote }}
+
+        - name: ACCESS_TOKEN_EXPIRE_MINUTES
+          value: {{ .Values.env.accessTokenExpireMinutes | quote }}
+
+        - name: NOTIFY_SERVICE_URL
+          value: {{ .Values.env.notifyServiceUrl | quote }}
+
+
+        volumeMounts:
+
+        - name: vulntracker-secret
+          mountPath: /etc/secrets
+          readOnly: true
+
+
+        resources:
+
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+
+          limits:
+            cpu: {{ .Values.resources.limits.cpu }}
+            memory: {{ .Values.resources.limits.memory }}
+
+
+        livenessProbe:
+
+          httpGet:
+            path: /health
+            port: http
+
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+
+        readinessProbe:
+
+          httpGet:
+            path: /health
+            port: http
+
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+
+        startupProbe:
+
+          httpGet:
+            path: /health
+            port: http
+
+          failureThreshold: 30
+          periodSeconds: 10
+
+
+
+      volumes:
+
+      - name: vulntracker-secret
+
+        secret:
+
+          secretName: {{ .Values.secret.existingSecret }}

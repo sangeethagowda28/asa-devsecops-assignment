@@ -35,3 +35,16 @@ class ScanResult(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     owner = relationship("User", back_populates="scans")
+    shared_reports = relationship("SharedReport", back_populates="scan")
+
+class SharedReport(Base):
+    __tablename__ = "shared_reports"
+ 
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String(128), unique=True, index=True, nullable=False)
+    scan_id = Column(Integer, ForeignKey("scan_results.id"), nullable=False)
+    password_hash = Column(String(255), nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    scan = relationship("ScanResult", back_populates="shared_reports")

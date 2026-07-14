@@ -1,6 +1,6 @@
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 import httpx
@@ -8,11 +8,13 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, s
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import secrets
 
 import models
 from auth import create_access_token, get_current_user, get_password_hash, verify_password
 from config import NOTIFY_SERVICE_URL
 from database import engine, get_db, search_scans_by_query
+from fastapi.middleware.cors import CORSMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,28 +28,22 @@ app = FastAPI(
 )
 
 
-@app.middleware("http")
-async def cors_middleware(request: Request, call_next):
-    response = await call_next(request)
-    origin = request.headers.get("origin")
-    if origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled exception on %s: %s", request.url, exc)
+    logger.exception("Unhandled exception on %s", request.url)
     return JSONResponse(
         status_code=500,
         content={
-            "error": str(exc),
-            "type": type(exc).__name__,
-            "traceback": traceback.format_exc(),
-            "path": str(request.url),
+            "error": "Internal server error"
         },
     )
 
@@ -106,6 +102,12 @@ class ScanOut(BaseModel):
     class Config:
         from_attributes = True
 
+class ShareRequest(BaseModel):
+    password: Optional[str] = None
+
+class ShareResponse(BaseModel):
+    share_url: str
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -145,18 +147,27 @@ def register(payload: UserRegister, db: Session = Depends(get_db)):
 
 @app.post("/auth/login")
 def login(payload: UserLogin, db: Session = Depends(get_db)):
-    logger.info("Login attempt — username: %s password: %s", payload.username, payload.password)
-    user = db.query(models.User).filter(models.User.username == payload.username).first()
-    if not user or not verify_password(payload.password, user.hashed_password):
-        logger.warning(
-            "Failed login — username: '%s' password: '%s'",
-            payload.username,
-            payload.password,
-        )
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-    token = create_access_token({"sub": user.username})
-    return {"access_token": token, "token_type": "bearer"}
+    logger.info("Login attempt for user: %s", payload.username)
 
+    user = (
+        db.query(models.User)
+        .filter(models.User.username == payload.username)
+        .first()
+    )
+
+    if not user or not verify_password(payload.password, user.hashed_password):
+        logger.warning("Failed login for user: %s", payload.username)
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+        )
+
+    token = create_access_token({"sub": user.username})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
 
 # ---------------------------------------------------------------------------
 # Scan routes
@@ -218,7 +229,14 @@ def get_scan(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    scan = db.query(models.ScanResult).filter(models.ScanResult.id == scan_id).first()
+    scan = (
+    db.query(models.ScanResult)
+    .filter(
+        models.ScanResult.id == scan_id,
+        models.ScanResult.owner_id == current_user.id,
+    )
+    .first()
+)
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     return scan
@@ -255,6 +273,81 @@ def update_scan(
     })
     return scan
 
+@app.post("/scans/{scan_id}/share", response_model=ShareResponse)
+def share_scan(
+    scan_id: int,
+    payload: ShareRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    scan = (
+        db.query(models.ScanResult)
+        .filter(
+            models.ScanResult.id == scan_id,
+            models.ScanResult.owner_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    token = secrets.token_urlsafe(32)
+
+    shared_report = models.SharedReport(
+        token=token,
+        scan_id=scan.id,
+        password_hash=(
+            get_password_hash(payload.password)
+            if payload.password
+            else None
+        ),
+        expires_at=datetime.utcnow() + timedelta(hours=24),
+    )
+
+    db.add(shared_report)
+    db.commit()
+
+    share_url = str(request.base_url).rstrip("/") + f"/share/{token}"
+
+    return ShareResponse(share_url=share_url)
+
+@app.get("/share/{token}", response_model=ScanOut)
+def get_shared_scan(
+    token: str,
+    password: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    shared_report = (
+        db.query(models.SharedReport)
+        .filter(models.SharedReport.token == token)
+        .first()
+    )
+
+    if (
+        not shared_report
+        or shared_report.expires_at < datetime.utcnow()
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Shared link not found or expired",
+        )
+
+    if shared_report.password_hash:
+        if not password:
+            raise HTTPException(
+                status_code=401,
+                detail="Password required",
+            )
+
+        if not verify_password(password, shared_report.password_hash):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid password",
+            )
+
+    return shared_report.scan
 
 @app.delete("/scans/{scan_id}", status_code=204)
 def delete_scan(
@@ -275,6 +368,10 @@ def delete_scan(
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
+
+@app.get("/routes")
+def list_routes():
+    return [route.path for route in app.routes]
 
 @app.get("/health")
 def health():
