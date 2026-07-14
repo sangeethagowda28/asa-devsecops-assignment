@@ -363,7 +363,7 @@ pipeline {
                 set HELM_PATH=
                 for /d %%d in (C:\\Users\\*) do (
                     if exist "%%d\\Downloads" (
-                        for /f "delims=" %%h in ('dir /b /s "%%d\\Downloads\\helm.exe" 2>nul') do set HELM_PATH=%%h
+                        for /f "delims=" %%h in ('dir /b /s "%%d\\Downloads\\helm.exe" 2^>nul') do set HELM_PATH=%%h
                     )
                 )
 
@@ -404,7 +404,7 @@ pipeline {
                 for /d %%d in (C:\\Users\\*) do (
                     if exist "%%d\\.kube\\config" set KUBE_CONFIG_PATH=%%d\\.kube\\config
                     if exist "%%d\\Downloads" (
-                        for /f "delims=" %%h in ('dir /b /s "%%d\\Downloads\\helm.exe" 2>nul') do set HELM_PATH=%%h
+                        for /f "delims=" %%h in ('dir /b /s "%%d\\Downloads\\helm.exe" 2^>nul') do set HELM_PATH=%%h
                     )
                 )
 
