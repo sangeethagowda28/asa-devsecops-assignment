@@ -388,10 +388,12 @@ pipeline {
 
                 echo Deploying application...
 
+                if not exist "%WORKSPACE%\\.kube" mkdir "%WORKSPACE%\\.kube"
+                copy "C:\\Users\\sagar\\.kube\\config" "%WORKSPACE%\\.kube\\config"
 
                 docker run --rm ^
                   -v "%WORKSPACE%:/apps" ^
-                  -v "%USERPROFILE%\\.kube:/root/.kube" ^
+                  -v "%WORKSPACE%\\.kube:/root/.kube" ^
                   alpine/helm upgrade --install vulntracker /apps/helm ^
                   --namespace %K8S_NAMESPACE% ^
                   --create-namespace ^
@@ -423,6 +425,7 @@ pipeline {
 
                 echo Checking deployment...
 
+                set KUBECONFIG=%WORKSPACE%\\.kube\\config
 
                 kubectl rollout status deployment/vulntracker ^
                 -n %K8S_NAMESPACE%
