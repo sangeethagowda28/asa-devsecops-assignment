@@ -9,6 +9,7 @@ WORKDIR /app
 ENV PYTHONPATH=/app/app
 
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         build-essential && \
     rm -rf /var/lib/apt/lists/*
