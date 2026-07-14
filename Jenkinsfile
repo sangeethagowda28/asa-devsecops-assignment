@@ -191,12 +191,13 @@ pipeline {
                 echo Running Snyk Security Scan...
 
 
-                set SNYK_TOKEN=%SNYK_TOKEN%
-
-
-                snyk test ^
-                --severity-threshold=high
-
+                docker run --rm ^
+                  --entrypoint "" ^
+                  -v "%WORKSPACE%:/app" ^
+                  -w /app ^
+                  -e SNYK_TOKEN=%SNYK_TOKEN% ^
+                  snyk/snyk:python ^
+                  sh -c "pip install -r requirements.txt && snyk test --severity-threshold=high"
 
                 '''
 
