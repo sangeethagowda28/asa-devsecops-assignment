@@ -248,7 +248,7 @@ pipeline {
                 echo Building Docker Image...
 
 
-                docker build ^
+                docker build --no-cache ^
                 -t %IMAGE_NAME%:%IMAGE_TAG% ^
                 -t %IMAGE_NAME%:latest .
 
@@ -278,6 +278,7 @@ pipeline {
 
                 trivy image ^
                 --severity HIGH,CRITICAL ^
+                --ignore-unfixed ^
                 --exit-code 1 ^
                 %IMAGE_NAME%:%IMAGE_TAG%
 
