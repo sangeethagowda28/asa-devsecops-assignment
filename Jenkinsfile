@@ -127,11 +127,11 @@ pipeline {
                 REM Run pytest natively so coverage.xml paths are Windows-relative.
                 REM Docker-based runs produce /workspace/... paths that SonarQube
                 REM cannot resolve on Windows, causing 0%% coverage and gate failure.
-                if exist .venv\Scripts\activate.bat (
-                    call .venv\Scripts\activate.bat
+                if exist .venv\\Scripts\\activate.bat (
+                    call .venv\\Scripts\\activate.bat
                 ) else (
                     python -m venv .venv
-                    call .venv\Scripts\activate.bat
+                    call .venv\\Scripts\\activate.bat
                     pip install -r requirements.txt
                 )
 
@@ -144,6 +144,7 @@ pipeline {
 
 
                 '''
+
 
             }
 
