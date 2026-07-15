@@ -120,35 +120,33 @@ pipeline {
 
                 echo Running Unit Tests...
 
-
                 if not exist reports mkdir reports
 
-
-                REM Run pytest natively so coverage.xml paths are Windows-relative.
-                REM Docker-based runs produce /workspace/... paths that SonarQube
-                REM cannot resolve on Windows, causing 0%% coverage and gate failure.
-                if exist .venv\\Scripts\\activate.bat (
-                    call .venv\\Scripts\\activate.bat
-                ) else (
-                    python -m venv .venv
-                    call .venv\\Scripts\\activate.bat
-                    pip install -r requirements.txt
-                )
-
-                pip install -r requirements.txt --quiet
-
-                pytest tests/ -v ^
-                  --cov=app ^
-                  --cov-report=xml:reports/coverage.xml ^
-                  --rootdir=%WORKSPACE%
-
+                docker run --rm ^
+                  -v "%WORKSPACE%:/workspace" ^
+                  -w /workspace ^
+                  python:3.12-slim-bookworm ^
+                  sh -c "pip install -r requirements.txt && pytest tests/ -v --cov=app --cov-report=xml:reports/coverage.xml"
 
                 '''
 
+                // Fix coverage.xml source paths so SonarQube can resolve them.
+                // Docker runs generate Linux paths (/workspace/app). SonarQube
+                // runs on Windows and cannot match those, reporting 0% coverage
+                // and failing the quality gate. This replaces the Docker path
+                // with the real Windows workspace path before the scan runs.
+                powershell '''
+                $file = "reports\\coverage.xml"
+                $content = Get-Content $file -Raw
+                $fixed  = $content -replace "<source>[^<]+</source>", "<source>$env:WORKSPACE\\app</source>"
+                Set-Content $file $fixed
+                Write-Host "Coverage paths fixed: /workspace/app -> $env:WORKSPACE\\app"
+                '''
 
             }
 
         }
+
 
 
 
