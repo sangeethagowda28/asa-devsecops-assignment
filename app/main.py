@@ -9,12 +9,19 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import secrets
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 import models
 from auth import create_access_token, get_current_user, get_password_hash, verify_password
 from config import NOTIFY_SERVICE_URL
 from database import engine, get_db, search_scans_by_query
 from fastapi.middleware.cors import CORSMiddleware
+
+# SEC-03 FIX: Rate limiter keyed on caller IP to block brute-force attempts
+# against password-protected shared report links.
+limiter = Limiter(key_func=get_remote_address)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,6 +33,8 @@ app = FastAPI(
     description="Vulnerability tracking and management REST API",
     version="1.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 app.add_middleware(
@@ -314,7 +323,9 @@ def share_scan(
     return ShareResponse(share_url=share_url)
 
 @app.get("/share/{token}", response_model=ScanOut)
+@limiter.limit("10/minute")  # SEC-03 FIX: cap password-guess attempts per IP
 def get_shared_scan(
+    request: Request,
     token: str,
     password: Optional[str] = None,
     db: Session = Depends(get_db),

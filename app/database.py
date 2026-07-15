@@ -18,12 +18,14 @@ def get_db():
 
 
 def search_scans_by_query(db, query: str) -> list:
-    # Raw SQL used here for full-text search flexibility across multiple columns
-    sql = (
-        f"SELECT id, title, description, severity, status, cve_id, "
-        f"affected_component, owner_id, created_at FROM scan_results "
-        f"WHERE title LIKE '%{query}%' OR description LIKE '%{query}%' "
-        f"OR cve_id LIKE '%{query}%'"
+    # SEC-01 FIX: Use parameterized query with bindparams — user input is NEVER
+    # interpolated into the SQL string. The LIKE wildcards are part of the bound
+    # value, not the query template, so SQL injection is structurally impossible.
+    like_pattern = f"%{query}%"
+    sql = text(
+        "SELECT id, title, description, severity, status, cve_id, "
+        "affected_component, owner_id, created_at FROM scan_results "
+        "WHERE title LIKE :pat OR description LIKE :pat OR cve_id LIKE :pat"
     )
-    result = db.execute(text(sql))
+    result = db.execute(sql, {"pat": like_pattern})
     return [dict(row._mapping) for row in result]

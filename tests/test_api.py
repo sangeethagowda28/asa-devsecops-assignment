@@ -148,3 +148,104 @@ def test_delete_scan():
 
     resp = client.delete(f"/scans/{scan_id}", headers=auth_headers(token))
     assert resp.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Shared Report Link tests (Task 1 feature)
+# ---------------------------------------------------------------------------
+
+def _create_scan(token):
+    """Helper: create a scan and return its ID."""
+    return client.post("/scans", json={
+        "title": "XSS in dashboard",
+        "severity": "high",
+        "affected_component": "GET /dashboard",
+    }, headers=auth_headers(token)).json()["id"]
+
+
+def test_share_scan_returns_url():
+    token = register_and_login()
+    scan_id = _create_scan(token)
+    resp = client.post(f"/scans/{scan_id}/share", json={}, headers=auth_headers(token))
+    assert resp.status_code == 200
+    assert "share_url" in resp.json()
+    assert "/share/" in resp.json()["share_url"]
+
+
+def test_share_scan_with_password():
+    token = register_and_login()
+    scan_id = _create_scan(token)
+    resp = client.post(
+        f"/scans/{scan_id}/share",
+        json={"password": "s3cret"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert "share_url" in resp.json()
+
+
+def test_share_scan_not_found_for_other_owner():
+    """A user cannot generate a share link for another user's scan."""
+    token_a = register_and_login("alice2", "alice2@example.com", "pw")
+    token_b = register_and_login("bob2", "bob2@example.com", "pw")
+    scan_id = _create_scan(token_a)
+    resp = client.post(f"/scans/{scan_id}/share", json={}, headers=auth_headers(token_b))
+    assert resp.status_code == 404
+
+
+def test_get_shared_scan_no_password():
+    token = register_and_login()
+    scan_id = _create_scan(token)
+    share_url = client.post(
+        f"/scans/{scan_id}/share", json={}, headers=auth_headers(token)
+    ).json()["share_url"]
+    share_token = share_url.split("/share/")[-1]
+    resp = client.get(f"/share/{share_token}")
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "XSS in dashboard"
+
+
+def test_get_shared_scan_correct_password():
+    token = register_and_login()
+    scan_id = _create_scan(token)
+    share_url = client.post(
+        f"/scans/{scan_id}/share",
+        json={"password": "mysecret"},
+        headers=auth_headers(token),
+    ).json()["share_url"]
+    share_token = share_url.split("/share/")[-1]
+    resp = client.get(f"/share/{share_token}?password=mysecret")
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "XSS in dashboard"
+
+
+def test_get_shared_scan_wrong_password():
+    token = register_and_login()
+    scan_id = _create_scan(token)
+    share_url = client.post(
+        f"/scans/{scan_id}/share",
+        json={"password": "correct"},
+        headers=auth_headers(token),
+    ).json()["share_url"]
+    share_token = share_url.split("/share/")[-1]
+    resp = client.get(f"/share/{share_token}?password=wrong")
+    assert resp.status_code == 401
+
+
+def test_get_shared_scan_missing_password():
+    token = register_and_login()
+    scan_id = _create_scan(token)
+    share_url = client.post(
+        f"/scans/{scan_id}/share",
+        json={"password": "required"},
+        headers=auth_headers(token),
+    ).json()["share_url"]
+    share_token = share_url.split("/share/")[-1]
+    resp = client.get(f"/share/{share_token}")
+    assert resp.status_code == 401
+
+
+def test_get_shared_scan_invalid_token():
+    resp = client.get("/share/nonexistent-token-abc123")
+    assert resp.status_code == 404
+
